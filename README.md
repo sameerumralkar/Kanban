@@ -6,6 +6,8 @@ A lightweight Kanban board for the internal IT Project Management Office of a fi
 
 **Live demo:** https://sameerumralkar.github.io/Kanban/
 
+![IT PMO Kanban board showing the Backlog, In Progress, Blocked and Done columns](docs/screenshot.png)
+
 ## Features
 
 - **Four-column board:** Backlog, In Progress, Blocked, Done.
@@ -55,6 +57,7 @@ FormSubmit sends a one-time activation email on the first submission. Nothing is
 .
 ├── index.html               # The whole app: markup, <style>, <script>
 ├── CLAUDE.md                # Architecture notes and constraints for contributors / Claude Code
+├── docs/screenshot.png      # README screenshot of the live site
 └── .github/workflows/ci.yml # CI checks + GitHub Pages deployment
 ```
 
