@@ -1,0 +1,1966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<!-- Defence in depth: the only network destination is FormSubmit; no external scripts, styles, fonts or images -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src https://formsubmit.co; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>IT PMO Board v2</title>
+<style>
+  /* =========================================================
+     Design tokens
+     One status colour language is shared by the board columns,
+     the donut, the assignee bars and the delivery timeline.
+     ========================================================= */
+  :root {
+    --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+    --bg: #f4f6f9;
+    --surface: #ffffff;
+    --surface-2: #eaeef3;
+    --text: #13233a;
+    --muted: #556275;
+    --line: #d5dce5;
+    --line-strong: #b9c3cf;
+    --ink: #13233a;
+    --ink-text: #f2f5f9;
+    --ink-muted: #b9c6d6;
+
+    --action: #0f6e66;
+    --action-hover: #0b5751;
+    --action-text: #ffffff;
+    --action-soft: #e0f1ef;
+
+    /* Status: board columns, donut, bars, timeline */
+    --st-backlog: #64748b;
+    --st-progress: #1f63d6;
+    --st-blocked: #c2410c;
+    --st-done: #1d7a46;
+
+    /* Priority: card edge and pill */
+    --p-critical: #b42318;
+    --p-high: #b45309;
+    --p-medium: #4c5fb8;
+    --p-low: #7b8695;
+
+    --danger: #b42318;
+    --danger-soft: #fdecea;
+    --danger-line: #f3b9b3;
+    --success: #1d7a46;
+    --success-soft: #e5f4eb;
+    --warning: #7a4d00;
+    --warning-soft: #fff3d9;
+
+    --focus: #f0a400;
+
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    --space-7: 48px;
+
+    --radius: 6px;
+    --radius-sm: 4px;
+    --shadow-lg: 0 16px 40px rgba(10, 20, 35, 0.28);
+
+    --page-max: 1440px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1621;
+      --surface: #16212f;
+      --surface-2: #1c2938;
+      --text: #e6ecf3;
+      --muted: #9fadbd;
+      --line: #2a3a4d;
+      --line-strong: #3b4e64;
+      --ink: #0a111a;
+      --ink-text: #e6ecf3;
+      --ink-muted: #9fadbd;
+
+      --action: #2bb3a6;
+      --action-hover: #4cc7bb;
+      --action-text: #06201d;
+      --action-soft: #12332f;
+
+      --st-backlog: #94a3b8;
+      --st-progress: #5b9bff;
+      --st-blocked: #f08a4b;
+      --st-done: #4cc38a;
+
+      --p-critical: #ff6b5e;
+      --p-high: #f0a03c;
+      --p-medium: #8b9cf0;
+      --p-low: #94a3b8;
+
+      --danger: #ff8a80;
+      --danger-soft: #3a1c1c;
+      --danger-line: #6b2b2b;
+      --success: #4cc38a;
+      --success-soft: #133325;
+      --warning: #ffcf7a;
+      --warning-soft: #3a2c10;
+    }
+  }
+
+  /* =========================================================
+     Base
+     ========================================================= */
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text);
+    background: var(--bg);
+    font-variant-numeric: tabular-nums;
+  }
+
+  button, input, select, textarea { font: inherit; color: inherit; }
+
+  a { color: var(--action); }
+
+  :focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .wrap {
+    max-width: var(--page-max);
+    margin: 0 auto;
+    padding: 0 var(--space-5);
+  }
+
+  /* Status classes set --st, which each component reads */
+  .st-backlog { --st: var(--st-backlog); }
+  .st-in-progress { --st: var(--st-progress); }
+  .st-blocked { --st: var(--st-blocked); }
+  .st-done { --st: var(--st-done); }
+
+  /* =========================================================
+     Buttons
+     ========================================================= */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 40px;
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: var(--action);
+    color: var(--action-text);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s;
+  }
+  .btn:hover { background: var(--action-hover); }
+  .btn:disabled { opacity: 0.6; cursor: progress; }
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--line-strong);
+  }
+  .btn-secondary:hover { background: var(--surface-2); }
+
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 var(--space-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .icon-btn:hover { background: var(--surface-2); color: var(--text); }
+
+  /* =========================================================
+     Header
+     ========================================================= */
+  .app-header {
+    background: var(--ink);
+    color: var(--ink-text);
+    padding: var(--space-4) 0 var(--space-5);
+  }
+  .header-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+  .brand { display: flex; align-items: center; gap: var(--space-3); }
+  .brand h1 { margin: 0; font-size: 20px; line-height: 1.2; }
+  .brand h1 span { font-weight: 500; color: var(--ink-muted); }
+  .brand p { margin: 0; font-size: 12px; color: var(--ink-muted); }
+  .brand-mark {
+    width: 38px; height: 38px;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.1);
+    display: grid; place-items: center;
+  }
+
+  .header-actions { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+  .section-nav { display: flex; gap: var(--space-1); }
+  .section-nav a {
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    color: var(--ink-text);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .section-nav a:hover { background: rgba(255, 255, 255, 0.1); }
+  .btn-add { background: #ffffff; color: #13233a; }
+  .btn-add:hover { background: #dfeceb; }
+
+  .headline {
+    margin: var(--space-5) 0 0;
+    max-width: 72ch;
+    font-size: 17px;
+    line-height: 1.5;
+  }
+  .headline strong { font-weight: 700; }
+  .headline .late { color: #ffb4ab; }
+  .demo-note {
+    margin: var(--space-2) 0 0;
+    font-size: 12px;
+    color: var(--ink-muted);
+  }
+
+  /* =========================================================
+     Sections
+     ========================================================= */
+  main { padding: var(--space-5) 0 var(--space-7); }
+
+  .section { margin-top: var(--space-7); scroll-margin-top: var(--space-4); }
+  .section-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-4);
+    margin-bottom: var(--space-4);
+  }
+  .section-head h2 { margin: 0; font-size: 20px; line-height: 1.25; }
+  .section-note { margin: var(--space-1) 0 0; color: var(--muted); max-width: 72ch; }
+  .scope {
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .scope strong { color: var(--text); }
+
+  /* =========================================================
+     Filter toolbar
+     ========================================================= */
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-3) var(--space-4);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--line);
+  }
+  .filters h2 { margin: 0 var(--space-2) var(--space-2) 0; font-size: 14px; }
+  .filter-field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 180px; }
+  .filter-field label { font-size: 12px; font-weight: 600; color: var(--muted); }
+
+  input[type="text"], input[type="date"], select, textarea {
+    width: 100%;
+    min-height: 40px;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+  }
+  input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="true"] {
+    border-color: var(--danger);
+  }
+
+  /* =========================================================
+     Board & columns
+     ========================================================= */
+  .board {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(240px, 1fr));
+    gap: var(--space-4);
+    align-items: start;
+  }
+
+  .column {
+    display: flex;
+    flex-direction: column;
+    min-height: 260px;
+    background: var(--surface-2);
+    border: 2px solid transparent;
+    border-top: 4px solid var(--st);
+    border-radius: 0 0 var(--radius) var(--radius);
+    transition: background-color 0.15s, border-color 0.15s;
+  }
+  .column.drag-over {
+    border-color: var(--st);
+    border-style: dashed;
+    border-top-style: solid;
+    background: var(--action-soft);
+  }
+  .column-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4) var(--space-2);
+  }
+  .column-header h3 { margin: 0; font-size: 15px; }
+
+  .count-badge {
+    min-width: 28px;
+    padding: 0 var(--space-2);
+    border-radius: 999px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .card-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3) var(--space-3);
+    margin: 0;
+    list-style: none;
+    flex: 1;
+  }
+  .empty-hint {
+    padding: var(--space-5) var(--space-4);
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius-sm);
+    color: var(--muted);
+    text-align: center;
+    font-size: 13px;
+  }
+
+  /* =========================================================
+     Cards
+     ========================================================= */
+  .card {
+    --prio-color: var(--p-medium);
+    position: relative;
+    padding: var(--space-3);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--prio-color);
+    border-radius: var(--radius-sm);
+    cursor: grab;
+  }
+  .card:hover { border-color: var(--line-strong); border-left-color: var(--prio-color); }
+  .card:active { cursor: grabbing; }
+  .card.dragging { opacity: 0.4; }
+  .card.prio-critical { --prio-color: var(--p-critical); }
+  .card.prio-high { --prio-color: var(--p-high); }
+  .card.prio-medium { --prio-color: var(--p-medium); }
+  .card.prio-low { --prio-color: var(--p-low); }
+  .card.is-done .card-title { color: var(--muted); }
+
+  .card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+  .card-id { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .card-title {
+    margin: var(--space-1) 0 var(--space-2);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.35;
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .card-meta { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px var(--space-3); font-size: 12px; }
+  .card-meta dt { color: var(--muted); }
+  .card-meta dd { margin: 0; word-break: break-word; }
+
+  .card-tags { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-2); }
+  .pill {
+    display: inline-block;
+    padding: 1px var(--space-2);
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .pill-critical { background: var(--p-critical); color: #fff; }
+  .pill-high { background: var(--p-high); color: #fff; }
+  .pill-medium { background: var(--p-medium); color: #fff; }
+  .pill-low { background: var(--p-low); color: #fff; }
+  .tag { background: var(--surface-2); color: var(--text); border-color: var(--line); font-weight: 500; }
+  .overdue { background: var(--danger-soft); color: var(--danger); border-color: var(--danger-line); }
+
+  @media (prefers-color-scheme: dark) {
+    .pill-critical, .pill-high, .pill-medium, .pill-low { color: #0e1621; }
+  }
+
+  .card-actions { display: flex; gap: var(--space-1); }
+
+  .move-menu, .confirm-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+    margin-top: var(--space-2);
+    padding: var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    font-size: 12px;
+  }
+  .confirm-row { background: var(--danger-soft); color: var(--danger); font-weight: 600; }
+  .mini-btn {
+    min-height: 28px;
+    padding: 2px var(--space-2);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .mini-btn:hover { background: var(--action-soft); }
+  .mini-btn.danger { background: var(--danger); border-color: var(--danger); color: var(--surface); }
+
+  /* =========================================================
+     Delivery timeline (runway from today to each due date)
+     --lw is the label column width; overlays use it to line up
+     with the tracks.
+     ========================================================= */
+  .timeline {
+    --lw: 340px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: var(--space-4) var(--space-4) var(--space-3);
+  }
+  .tl-key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-5);
+    margin: 0 0 var(--space-4);
+    padding: 0;
+    list-style: none;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .tl-key li { display: flex; align-items: center; gap: var(--space-2); }
+  .key-runway { width: 28px; height: 6px; border-radius: 3px; background: var(--st-progress); opacity: 0.45; }
+  .key-late {
+    width: 28px; height: 6px; border-radius: 3px;
+    background: repeating-linear-gradient(135deg, var(--danger) 0 4px, transparent 4px 7px);
+  }
+  .key-mark { width: 10px; height: 10px; transform: rotate(45deg); background: var(--st-progress); }
+  .key-today { width: 2px; height: 14px; background: var(--text); }
+
+  .tl-body { position: relative; }
+  .tl-axis {
+    position: relative;
+    height: 22px;
+    margin-left: var(--lw);
+    border-bottom: 1px solid var(--line);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .tl-axis span {
+    position: absolute;
+    bottom: 4px;
+    left: calc(var(--p) * 100%);
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+  .tl-axis .tl-axis-today { color: var(--text); font-weight: 700; }
+
+  .tl-grid, .tl-today {
+    position: absolute;
+    top: 22px;
+    bottom: 0;
+    left: calc(var(--lw) + (100% - var(--lw)) * var(--p));
+    pointer-events: none;
+  }
+  .tl-grid { border-left: 1px dashed var(--line); }
+  .tl-today { border-left: 2px solid var(--text); z-index: 1; }
+
+  .tl-lanes, .tl-rows { margin: 0; padding: 0; list-style: none; }
+  .tl-lane + .tl-lane { border-top: 1px solid var(--line); }
+  .tl-lane h3 {
+    margin: 0;
+    padding: var(--space-3) 0 var(--space-1);
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .tl-row {
+    display: grid;
+    grid-template-columns: var(--lw) 1fr;
+    align-items: center;
+    min-height: 40px;
+  }
+  .tl-label {
+    display: flex;
+    flex-direction: column;
+    padding-right: var(--space-4);
+    min-width: 0;
+  }
+  .tl-title {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tl-id { color: var(--muted); font-weight: 600; margin-right: var(--space-1); }
+  .tl-when { font-size: 12px; color: var(--muted); }
+  .tl-row.is-late .tl-when { color: var(--danger); font-weight: 600; }
+  .tl-row.st-done .tl-when { color: var(--success); }
+
+  .tl-track { position: relative; height: 24px; }
+  .tl-span {
+    position: absolute;
+    top: 9px;
+    height: 6px;
+    left: calc(var(--from) * 100%);
+    width: calc((var(--to) - var(--from)) * 100%);
+    border-radius: 3px;
+  }
+  .tl-span.runway { background: var(--st); opacity: 0.45; }
+  .tl-span.late { background: repeating-linear-gradient(135deg, var(--danger) 0 4px, transparent 4px 7px); }
+  .tl-mark {
+    position: absolute;
+    top: 6px;
+    left: calc(var(--p) * 100%);
+    width: 12px;
+    height: 12px;
+    margin-left: -6px;
+    background: var(--st);
+    border: 2px solid var(--surface);
+    transform: rotate(45deg);
+    z-index: 2;
+  }
+  .tl-row.is-late .tl-mark { background: var(--danger); }
+  .tl-empty { padding: var(--space-6) 0; text-align: center; color: var(--muted); }
+
+  /* =========================================================
+     Insights: donut by status, bars by assignee
+     ========================================================= */
+  .insights {
+    display: grid;
+    grid-template-columns: minmax(300px, 2fr) 3fr;
+    gap: var(--space-4);
+  }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: var(--space-4) var(--space-5) var(--space-5);
+  }
+  .panel h3 { margin: 0; font-size: 16px; }
+  .panel .section-note { font-size: 13px; }
+
+  .donut-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-5);
+    margin-top: var(--space-4);
+  }
+  .donut { width: 180px; height: 180px; flex: none; }
+  .donut-track { stroke: var(--surface-2); }
+  .donut-seg { stroke: var(--st); transition: stroke-dasharray 0.25s ease, stroke-dashoffset 0.25s ease; }
+  .donut-total { fill: var(--text); font-size: 26px; font-weight: 700; }
+  .donut-label { fill: var(--muted); font-size: 10px; }
+
+  .legend { flex: 1; min-width: 180px; margin: 0; padding: 0; list-style: none; }
+  .legend li {
+    display: grid;
+    grid-template-columns: 12px 1fr auto 44px;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .legend li:last-child { border-bottom: 0; }
+  .swatch { width: 12px; height: 12px; border-radius: 3px; background: var(--st); }
+  .lg-val { font-weight: 700; text-align: right; }
+  .lg-pct { color: var(--muted); text-align: right; font-size: 12px; }
+
+  .bars { margin: var(--space-4) 0 0; padding: 0; list-style: none; }
+  .bar-row {
+    display: grid;
+    grid-template-columns: 130px 1fr 92px;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 34px;
+  }
+  .bar-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-track {
+    display: flex;
+    height: 18px;
+    background-image: linear-gradient(to right, var(--line) 1px, transparent 1px);
+    background-size: var(--tick) 100%;
+  }
+  .bar-seg {
+    height: 100%;
+    background: var(--st);
+    border-right: 2px solid var(--surface);
+    transition: width 0.25s ease;
+  }
+  .bar-seg:first-child { border-radius: 3px 0 0 3px; }
+  .bar-seg:last-child { border-right: 0; border-radius: 0 3px 3px 0; }
+  .bar-seg:only-child { border-radius: 3px; }
+  .bar-val { font-size: 13px; }
+  .bar-val strong { font-size: 14px; }
+  .bar-val .late { display: block; font-size: 11px; color: var(--danger); font-weight: 600; }
+  .bar-scale {
+    display: grid;
+    grid-template-columns: 130px 1fr 92px;
+    gap: var(--space-3);
+    margin-top: var(--space-1);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .bar-scale div { position: relative; height: 16px; }
+  .bar-scale div span { position: absolute; left: calc(var(--p) * 100%); transform: translateX(-50%); }
+  .chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    margin: var(--space-3) 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .chart-legend li { display: flex; align-items: center; gap: var(--space-2); }
+  .chart-empty { margin: var(--space-5) 0 0; color: var(--muted); }
+
+  /* =========================================================
+     Footer
+     ========================================================= */
+  .app-footer {
+    background: var(--ink);
+    color: var(--ink-muted);
+    font-size: 13px;
+    padding: var(--space-6) 0 var(--space-5);
+  }
+  .footer-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: var(--space-5);
+  }
+  .app-footer h2 { margin: 0 0 var(--space-2); font-size: 14px; color: var(--ink-text); }
+  .app-footer p { margin: 0 0 var(--space-2); max-width: 52ch; }
+  .app-footer ul { margin: 0; padding: 0; list-style: none; }
+  .app-footer li + li { margin-top: var(--space-1); }
+  .app-footer a { color: var(--ink-text); text-decoration: none; }
+  .app-footer a:hover { text-decoration: underline; }
+  .footer-base {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-4);
+    margin-top: var(--space-5);
+    padding-top: var(--space-4);
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+    font-size: 12px;
+  }
+
+  /* =========================================================
+     Modal & form
+     ========================================================= */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: var(--space-6) var(--space-4);
+    background: rgba(8, 15, 26, 0.6);
+    overflow-y: auto;
+  }
+  .modal-backdrop[hidden] { display: none; }
+  .modal {
+    width: 100%;
+    max-width: 560px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+  }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--line);
+  }
+  .modal-header h2 { margin: 0; font-size: 18px; }
+
+  .task-form { padding: var(--space-4) var(--space-5) var(--space-5); }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3) var(--space-4); }
+  .form-field { display: flex; flex-direction: column; gap: var(--space-1); }
+  .form-field.full { grid-column: 1 / -1; }
+  .form-field label { font-weight: 600; font-size: 13px; }
+  .req { color: var(--danger); }
+  .hint { font-size: 12px; color: var(--muted); font-weight: 400; }
+  .field-error { margin: 0; min-height: 1em; font-size: 12px; color: var(--danger); }
+  textarea { resize: vertical; min-height: 80px; }
+
+  .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+  }
+
+  /* =========================================================
+     Toasts
+     ========================================================= */
+  .toasts {
+    position: fixed;
+    right: var(--space-4);
+    bottom: var(--space-4);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    max-width: min(360px, calc(100vw - 2 * var(--space-4)));
+  }
+  .toast {
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-sm);
+    border-left: 5px solid var(--action);
+    background: var(--surface);
+    box-shadow: var(--shadow-lg);
+    font-size: 13px;
+    animation: toast-in 0.2s ease-out;
+  }
+  .toast-success { border-left-color: var(--success); background: var(--success-soft); }
+  .toast-warning { border-left-color: var(--p-high); background: var(--warning-soft); color: var(--warning); }
+  @keyframes toast-in {
+    from { transform: translateY(8px); opacity: 0; }
+    to { transform: none; opacity: 1; }
+  }
+
+  /* =========================================================
+     Responsive
+     ========================================================= */
+  @media (max-width: 1100px) {
+    .board { grid-template-columns: repeat(2, minmax(240px, 1fr)); }
+    .insights { grid-template-columns: 1fr; }
+    .timeline { --lw: 260px; }
+  }
+  @media (max-width: 767px) {
+    .wrap { padding: 0 var(--space-4); }
+    .board { grid-template-columns: 1fr; }
+    .filter-field { flex: 1 1 100%; }
+    .form-grid { grid-template-columns: 1fr; }
+    .modal-backdrop { padding: var(--space-4); }
+    .section-nav { display: none; }
+    .headline { font-size: 15px; }
+    .timeline { --lw: 0px; padding: var(--space-3); }
+    .tl-row { grid-template-columns: 1fr; padding: var(--space-2) 0; }
+    .tl-label { padding: 0 0 var(--space-1); position: relative; z-index: 3; background: var(--surface); }
+    .tl-lane h3 { position: relative; z-index: 3; background: var(--surface); }
+    .tl-title { white-space: normal; }
+    .bar-row, .bar-scale { grid-template-columns: 96px 1fr 72px; gap: var(--space-2); }
+    .panel { padding: var(--space-4); }
+    .footer-grid { grid-template-columns: 1fr; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .toast { animation: none; }
+    .column, .btn, .donut-seg, .bar-seg { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- =========================================================
+     Header: title, section links, Add task, headline summary
+     ========================================================= -->
+<header class="app-header">
+  <div class="wrap">
+    <div class="header-top">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="5" height="16" rx="1"></rect>
+            <rect x="10" y="4" width="5" height="10" rx="1"></rect>
+            <rect x="17" y="4" width="4" height="13" rx="1"></rect>
+          </svg>
+        </span>
+        <div>
+          <h1>IT PMO Board <span>v2</span></h1>
+          <p>Technology and Operations, Project Management Office</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <nav class="section-nav" aria-label="Page sections">
+          <a href="#board-heading">Board</a>
+          <a href="#timeline-heading">Delivery timeline</a>
+          <a href="#insights-heading">Insights</a>
+        </nav>
+        <button type="button" class="btn btn-add" id="open-add-task">+ Add task</button>
+      </div>
+    </div>
+
+    <p class="headline" id="summary" aria-live="off">
+      <!-- Filled by renderSummary() -->
+    </p>
+    <p class="demo-note">
+      Demo mode: tasks are held in memory only. Refreshing the page resets the board to the sample data.
+    </p>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- =========================================================
+       Filter toolbar (applies to board, timeline and charts)
+       ========================================================= -->
+  <section class="filters" aria-labelledby="filters-heading">
+    <h2 id="filters-heading">Filter tasks</h2>
+    <div class="filter-field">
+      <label for="filter-project">Project</label>
+      <select id="filter-project">
+        <option value="">All projects</option>
+      </select>
+    </div>
+    <div class="filter-field">
+      <label for="filter-assignee">Assignee contains</label>
+      <input type="text" id="filter-assignee" placeholder="e.g. Tan" autocomplete="off">
+    </div>
+    <div class="filter-field">
+      <label for="filter-priority">Priority</label>
+      <select id="filter-priority">
+        <option value="">All priorities</option>
+      </select>
+    </div>
+    <button type="button" class="btn btn-secondary" id="clear-filters">Clear filters</button>
+  </section>
+
+  <!-- =========================================================
+       Kanban board: four fixed columns
+       ========================================================= -->
+  <section class="section" aria-labelledby="board-heading" style="margin-top: var(--space-5)">
+    <div class="section-head">
+      <h2 id="board-heading">Board</h2>
+      <p class="scope" data-scope></p>
+    </div>
+    <div class="board" id="board">
+      <section class="column st-backlog" data-status="Backlog" aria-labelledby="col-h-backlog">
+        <div class="column-header">
+          <h3 id="col-h-backlog">Backlog</h3>
+          <span class="count-badge" data-count="Backlog" aria-label="0 tasks">0</span>
+        </div>
+        <ul class="card-list" data-list="Backlog"></ul>
+      </section>
+      <section class="column st-in-progress" data-status="In Progress" aria-labelledby="col-h-progress">
+        <div class="column-header">
+          <h3 id="col-h-progress">In Progress</h3>
+          <span class="count-badge" data-count="In Progress" aria-label="0 tasks">0</span>
+        </div>
+        <ul class="card-list" data-list="In Progress"></ul>
+      </section>
+      <section class="column st-blocked" data-status="Blocked" aria-labelledby="col-h-blocked">
+        <div class="column-header">
+          <h3 id="col-h-blocked">Blocked</h3>
+          <span class="count-badge" data-count="Blocked" aria-label="0 tasks">0</span>
+        </div>
+        <ul class="card-list" data-list="Blocked"></ul>
+      </section>
+      <section class="column st-done" data-status="Done" aria-labelledby="col-h-done">
+        <div class="column-header">
+          <h3 id="col-h-done">Done</h3>
+          <span class="count-badge" data-count="Done" aria-label="0 tasks">0</span>
+        </div>
+        <ul class="card-list" data-list="Done"></ul>
+      </section>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       Delivery timeline
+       ========================================================= -->
+  <section class="section" aria-labelledby="timeline-heading">
+    <div class="section-head">
+      <div>
+        <h2 id="timeline-heading">Delivery timeline</h2>
+        <p class="section-note">Every task's due date, grouped by project. The bar shows the runway from today to the due date. A hatched red bar shows how far past due an open task is.</p>
+      </div>
+      <p class="scope" data-scope></p>
+    </div>
+    <div class="timeline">
+      <ul class="tl-key" aria-label="Timeline key">
+        <li><span class="key-mark" aria-hidden="true"></span>Due date, coloured by status</li>
+        <li><span class="key-runway" aria-hidden="true"></span>Time left until due</li>
+        <li><span class="key-late" aria-hidden="true"></span>Days past due</li>
+        <li><span class="key-today" aria-hidden="true"></span>Today</li>
+      </ul>
+      <div id="timeline"><!-- Filled by renderTimeline() --></div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       Insights: status donut, assignee bars
+       ========================================================= -->
+  <section class="section" aria-labelledby="insights-heading">
+    <div class="section-head">
+      <h2 id="insights-heading">Insights</h2>
+      <p class="scope" data-scope></p>
+    </div>
+    <div class="insights">
+      <article class="panel" aria-labelledby="status-chart-heading">
+        <h3 id="status-chart-heading">Tasks by status</h3>
+        <p class="section-note">Share of tasks in each column.</p>
+        <div id="status-chart"><!-- Filled by renderStatusChart() --></div>
+      </article>
+      <article class="panel" aria-labelledby="assignee-chart-heading">
+        <h3 id="assignee-chart-heading">Tasks by assignee</h3>
+        <p class="section-note">Open and finished work per person, split by status. Most loaded first.</p>
+        <div id="assignee-chart"><!-- Filled by renderAssigneeChart() --></div>
+      </article>
+    </div>
+  </section>
+</main>
+
+<!-- =========================================================
+     Footer
+     ========================================================= -->
+<footer class="app-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <h2>IT PMO Board, version 2</h2>
+        <p>Plans and tracks technology change for the Technology and Operations PMO of a fictitious bank. All tasks, people and projects are sample data.</p>
+        <p>Board data lives in this browser tab only and resets when you refresh.</p>
+      </div>
+      <nav aria-labelledby="footer-sections">
+        <h2 id="footer-sections">On this page</h2>
+        <ul>
+          <li><a href="#board-heading">Board</a></li>
+          <li><a href="#timeline-heading">Delivery timeline</a></li>
+          <li><a href="#insights-heading">Insights</a></li>
+        </ul>
+      </nav>
+      <nav aria-labelledby="footer-more">
+        <h2 id="footer-more">More</h2>
+        <ul>
+          <li><a href="../">Previous version (v1)</a></li>
+          <li><a href="https://github.com/sameerumralkar/Kanban">Source code on GitHub</a></li>
+          <li><a href="https://github.com/sameerumralkar/Kanban/issues">Report an issue</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="footer-base">
+      <span>Built as a single HTML file with no frameworks or external resources.</span>
+      <span id="last-updated"></span>
+    </div>
+  </div>
+</footer>
+
+<!-- =========================================================
+     Add task modal
+     ========================================================= -->
+<div class="modal-backdrop" id="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-header">
+      <h2 id="modal-title">Add task</h2>
+      <button type="button" class="icon-btn" id="close-modal" aria-label="Close Add task dialog">✕</button>
+    </div>
+
+    <form class="task-form" id="task-form" novalidate>
+      <div class="form-grid">
+        <div class="form-field full">
+          <label for="f-title">Task title <span class="req" aria-hidden="true">*</span></label>
+          <input type="text" id="f-title" name="title" maxlength="80" required aria-describedby="err-title">
+          <p class="field-error" id="err-title"></p>
+        </div>
+
+        <div class="form-field full">
+          <label for="f-description">Description <span class="hint">(optional, max 500 characters)</span></label>
+          <textarea id="f-description" name="description" maxlength="500" aria-describedby="err-description"></textarea>
+          <p class="field-error" id="err-description"></p>
+        </div>
+
+        <div class="form-field">
+          <label for="f-project">Project or workstream</label>
+          <select id="f-project" name="project" aria-describedby="err-project"></select>
+          <p class="field-error" id="err-project"></p>
+        </div>
+
+        <div class="form-field">
+          <label for="f-category">Category</label>
+          <select id="f-category" name="category" aria-describedby="err-category"></select>
+          <p class="field-error" id="err-category"></p>
+        </div>
+
+        <div class="form-field">
+          <label for="f-assignee">Assignee <span class="req" aria-hidden="true">*</span></label>
+          <input type="text" id="f-assignee" name="assignee" maxlength="60" required aria-describedby="err-assignee" autocomplete="off">
+          <p class="field-error" id="err-assignee"></p>
+        </div>
+
+        <div class="form-field">
+          <label for="f-priority">Priority</label>
+          <select id="f-priority" name="priority" aria-describedby="err-priority"></select>
+          <p class="field-error" id="err-priority"></p>
+        </div>
+
+        <div class="form-field">
+          <label for="f-dueDate">Due date <span class="req" aria-hidden="true">*</span></label>
+          <input type="date" id="f-dueDate" name="dueDate" required aria-describedby="err-dueDate">
+          <p class="field-error" id="err-dueDate"></p>
+        </div>
+
+        <div class="form-field">
+          <label for="f-status">Status</label>
+          <select id="f-status" name="status" aria-describedby="err-status"></select>
+          <p class="field-error" id="err-status"></p>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-secondary" id="cancel-modal">Close</button>
+        <button type="submit" class="btn" id="submit-task">Add task</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Toast region: announced politely to screen readers -->
+<div class="toasts" id="toasts" aria-live="polite" role="status"></div>
+
+<!--
+  FORMSUBMIT ACTIVATION (one-time):
+  FormSubmit requires the destination address to be activated before it delivers anything.
+  The FIRST submission to a new address triggers a confirmation email to that address;
+  no submissions are delivered until the activation link in that email is clicked.
+  After activation, every new task sends a notification email.
+  Change the address in FORMSUBMIT_ENDPOINT (top of the script below) to swap recipients.
+-->
+<script>
+  "use strict";
+
+  /* =========================================================
+     CONFIG: change the email address here (only place it appears)
+     ========================================================= */
+  const FORMSUBMIT_ENDPOINT = "https://formsubmit.co/ajax/YOUR_EMAIL@example.com";
+  const NOTIFY_TIMEOUT_MS = 15000; // abort the email call if it hangs
+
+  /* =========================================================
+     Reference data
+     ========================================================= */
+  const STATUSES = ["Backlog", "In Progress", "Blocked", "Done"];
+  const PROJECTS = [
+    "Core Banking Upgrade",
+    "Digital Channels",
+    "Cybersecurity Uplift",
+    "Data & Analytics",
+    "Infrastructure & Cloud",
+    "Vendor Management",
+  ];
+  const CATEGORIES = [
+    "Application Development",
+    "Infrastructure",
+    "Cybersecurity",
+    "Data",
+    "Compliance",
+    "Vendor",
+  ];
+  const PRIORITIES = ["Critical", "High", "Medium", "Low"];
+  const DAY_MS = 86400000;
+
+  /* =========================================================
+     State: the single source of truth (memory only)
+     ========================================================= */
+  const state = {
+    tasks: [],
+    filters: { project: "", assignee: "", priority: "" },
+    nextId: 1,
+    pendingDelete: null, // task id showing the inline "Delete? Yes / No"
+    openMoveMenu: null,  // task id showing the "Move to…" menu
+  };
+
+  /* =========================================================
+     Helpers
+     ========================================================= */
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  // Local-date ISO string (YYYY-MM-DD), avoiding UTC off-by-one issues
+  function toISODate(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  function todayISO() {
+    return toISODate(new Date());
+  }
+
+  function addDays(days) {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return toISODate(d);
+  }
+
+  function parseISO(iso) {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  // Whole days from a to b (local dates), DST-safe via rounding
+  function daysBetween(aISO, bISO) {
+    return Math.round((parseISO(bISO) - parseISO(aISO)) / DAY_MS);
+  }
+
+  function isOverdue(task) {
+    return task.status !== "Done" && task.dueDate < todayISO();
+  }
+
+  function formatId(n) {
+    return "ITPM-" + String(n).padStart(4, "0");
+  }
+
+  function formatDate(iso) {
+    return parseISO(iso).toLocaleDateString(undefined, {
+      day: "numeric", month: "short", year: "numeric",
+    });
+  }
+
+  function formatShortDate(iso) {
+    return parseISO(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  }
+
+  function slug(value) {
+    return value.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  }
+
+  function plural(n, word) {
+    return `${n} ${word}${n === 1 ? "" : "s"}`;
+  }
+
+  /* =========================================================
+     Seed data: 14 demo tasks with dates relative to today
+     ========================================================= */
+  function seedTasks() {
+    const seeds = [
+      {
+        title: "Migrate FX pricing service to AWS",
+        description: "Lift-and-shift the FX rate pricing microservice from on-prem VMware to AWS EKS (ap-southeast-1). Includes DR runbook update.",
+        project: "Infrastructure & Cloud", category: "Infrastructure",
+        assignee: "Priya Nair", priority: "High", dueDate: addDays(21), status: "In Progress",
+      },
+      {
+        title: "Patch CVE-2025-XXXX on branch teller VDI",
+        description: "Apply vendor hotfix to all branch teller VDI golden images and roll out in the weekend change window.",
+        project: "Cybersecurity Uplift", category: "Cybersecurity",
+        assignee: "Marcus Lim", priority: "Critical", dueDate: addDays(-2), status: "In Progress",
+      },
+      {
+        title: "UAT sign-off for mobile onboarding release 4.2",
+        description: "Collect business UAT sign-off for eKYC onboarding flow; 3 defects outstanding with the vendor.",
+        project: "Digital Channels", category: "Application Development",
+        assignee: "Aisha Rahman", priority: "High", dueDate: addDays(-5), status: "Blocked",
+      },
+      {
+        title: "SWIFT CSP annual attestation evidence pack",
+        description: "Assemble control evidence for the SWIFT Customer Security Programme attestation.",
+        project: "Cybersecurity Uplift", category: "Compliance",
+        assignee: "Daniel Tan", priority: "Medium", dueDate: addDays(30), status: "Backlog",
+      },
+      {
+        title: "Core ledger end-of-day batch performance tuning",
+        description: "EOD batch overrunning SLA by ~40 min. Profile the interest accrual job and tune DB indexes.",
+        project: "Core Banking Upgrade", category: "Application Development",
+        assignee: "Wei Jie Chen", priority: "Critical", dueDate: addDays(7), status: "Backlog",
+      },
+      {
+        title: "Data lineage for regulatory reporting (MAS 610)",
+        description: "Document source-to-report lineage for MAS 610 returns in the data catalogue.",
+        project: "Data & Analytics", category: "Data",
+        assignee: "Siti Hassan", priority: "Medium", dueDate: addDays(45), status: "Backlog",
+      },
+      {
+        title: "Renew card-processing vendor SLA",
+        description: "Contract renewal awaiting Procurement and Legal approval on revised uptime penalties.",
+        project: "Vendor Management", category: "Vendor",
+        assignee: "Rachel Goh", priority: "Low", dueDate: addDays(14), status: "Blocked",
+      },
+      {
+        title: "Decommission legacy Solaris hosts (DC2)",
+        description: "Final 6 Solaris hosts powered down and removed from CMDB after application cut-over.",
+        project: "Infrastructure & Cloud", category: "Infrastructure",
+        assignee: "Kumar Pillai", priority: "Low", dueDate: addDays(-10), status: "Done",
+      },
+      {
+        title: "Rotate HSM master keys for card issuing",
+        description: "Scheduled dual-control key ceremony for the card-issuing HSM cluster, with key custodians from Security and Cards Ops.",
+        project: "Cybersecurity Uplift", category: "Cybersecurity",
+        assignee: "Marcus Lim", priority: "High", dueDate: addDays(10), status: "Backlog",
+      },
+      {
+        title: "Rate-limit internet banking login API",
+        description: "Add per-device and per-IP throttling on the login API after the credential-stuffing spike flagged by the SOC.",
+        project: "Digital Channels", category: "Application Development",
+        assignee: "Marcus Lim", priority: "Medium", dueDate: addDays(-1), status: "In Progress",
+      },
+      {
+        title: "Kafka capacity plan for real-time payments",
+        description: "Size broker and partition capacity for the 3x peak forecast on real-time payment volumes next quarter.",
+        project: "Infrastructure & Cloud", category: "Infrastructure",
+        assignee: "Priya Nair", priority: "Medium", dueDate: addDays(35), status: "Backlog",
+      },
+      {
+        title: "Customer 360 data mart: phase 1 cut-over",
+        description: "Move relationship managers to the new Customer 360 mart and retire the legacy nightly extract.",
+        project: "Data & Analytics", category: "Data",
+        assignee: "Aisha Rahman", priority: "High", dueDate: addDays(18), status: "In Progress",
+      },
+      {
+        title: "Core banking release 23.4 regression suite",
+        description: "Automated regression pack for the 23.4 core banking release, signed off by QA and Operations.",
+        project: "Core Banking Upgrade", category: "Application Development",
+        assignee: "Wei Jie Chen", priority: "High", dueDate: addDays(-3), status: "Done",
+      },
+      {
+        title: "Vendor risk assessment: cloud contact centre",
+        description: "Third-party risk questionnaire and outsourcing notification for the cloud contact-centre provider.",
+        project: "Vendor Management", category: "Vendor",
+        assignee: "Daniel Tan", priority: "Medium", dueDate: addDays(4), status: "In Progress",
+      },
+    ];
+    seeds.forEach(function (seed) {
+      state.tasks.push(Object.assign({ id: formatId(state.nextId++) }, seed));
+    });
+  }
+
+  /* =========================================================
+     Filtering (pure function over the in-memory array)
+     ========================================================= */
+  function applyFilters(tasks) {
+    const f = state.filters;
+    const needle = f.assignee.trim().toLowerCase();
+    return tasks.filter(function (t) {
+      if (f.project && t.project !== f.project) return false;
+      if (f.priority && t.priority !== f.priority) return false;
+      if (needle && !t.assignee.toLowerCase().includes(needle)) return false;
+      return true;
+    });
+  }
+
+  /* =========================================================
+     Rendering: everything is re-rendered from state
+     ========================================================= */
+  function renderCard(task) {
+    const id = escapeHtml(task.id);
+    const prio = slug(task.priority);
+    const overdue = isOverdue(task);
+
+    let extra = "";
+    if (state.pendingDelete === task.id) {
+      extra = `
+        <div class="confirm-row" role="group" aria-label="Confirm delete ${id}">
+          <span>Delete this task?</span>
+          <button type="button" class="mini-btn danger" data-action="delete-yes" data-id="${id}">Delete</button>
+          <button type="button" class="mini-btn" data-action="delete-no" data-id="${id}">Keep</button>
+        </div>`;
+    } else if (state.openMoveMenu === task.id) {
+      const targets = STATUSES.filter(function (s) { return s !== task.status; })
+        .map(function (s) {
+          return `<button type="button" class="mini-btn" data-action="move-to" data-id="${id}" data-status="${escapeHtml(s)}">${escapeHtml(s)}</button>`;
+        }).join("");
+      extra = `
+        <div class="move-menu" role="group" aria-label="Move ${id} to column">
+          <span>Move to:</span>${targets}
+        </div>`;
+    }
+
+    return `
+      <li class="card prio-${prio}${task.status === "Done" ? " is-done" : ""}" draggable="true" data-id="${id}">
+        <div class="card-top">
+          <span class="card-id">${id}</span>
+          <div class="card-actions">
+            <button type="button" class="icon-btn" data-action="move-toggle" data-id="${id}"
+              aria-expanded="${state.openMoveMenu === task.id}" aria-label="Move ${id} to another column">Move ▸</button>
+            <button type="button" class="icon-btn" data-action="delete-ask" data-id="${id}"
+              aria-label="Delete ${id}">×</button>
+          </div>
+        </div>
+        <h4 class="card-title">${escapeHtml(task.title)}</h4>
+        <dl class="card-meta">
+          <dt>Project</dt><dd>${escapeHtml(task.project)}</dd>
+          <dt>Assignee</dt><dd>${escapeHtml(task.assignee)}</dd>
+          <dt>Due</dt><dd><time datetime="${escapeHtml(task.dueDate)}">${escapeHtml(formatDate(task.dueDate))}</time></dd>
+        </dl>
+        <div class="card-tags">
+          <span class="pill pill-${prio}">${escapeHtml(task.priority)}</span>
+          <span class="pill tag">${escapeHtml(task.category)}</span>
+          ${overdue ? '<span class="pill overdue">⚠ Overdue</span>' : ""}
+        </div>
+        ${extra}
+      </li>`;
+  }
+
+  // Header sentence: the state of delivery in plain words
+  function renderSummary() {
+    const total = state.tasks.length;
+    const overdue = state.tasks.filter(isOverdue).length;
+    const blocked = state.tasks.filter(function (t) { return t.status === "Blocked"; }).length;
+    const done = state.tasks.filter(function (t) { return t.status === "Done"; }).length;
+    const today = todayISO();
+    const next = state.tasks
+      .filter(function (t) { return t.status !== "Done" && t.dueDate >= today; })
+      .sort(function (a, b) { return a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0; })[0];
+
+    let text = `<strong>${plural(total, "task")}</strong> on the board: ` +
+      `<strong class="late">${overdue} overdue</strong>, ${blocked} blocked and ${done} done.`;
+    if (next) {
+      const days = daysBetween(today, next.dueDate);
+      const when = days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
+      text += ` Next delivery is ${escapeHtml(next.id)}, ${escapeHtml(next.title)}, due ${when}.`;
+    }
+    document.getElementById("summary").innerHTML = text;
+  }
+
+  function renderScope(visible) {
+    const total = state.tasks.length;
+    const text = visible.length === total
+      ? `Showing all <strong>${plural(total, "task")}</strong>`
+      : `Filtered: <strong>${visible.length} of ${total}</strong> tasks`;
+    document.querySelectorAll("[data-scope]").forEach(function (el) { el.innerHTML = text; });
+  }
+
+  /* ---------- Delivery timeline ---------- */
+  function whenText(task, today) {
+    const d = daysBetween(today, task.dueDate);
+    const date = formatShortDate(task.dueDate);
+    if (task.status === "Done") return `Delivered, due ${date}`;
+    if (d < 0) return `${plural(-d, "day")} late, was due ${date}`;
+    if (d === 0) return `Due today, ${date}`;
+    return `Due ${date}, in ${plural(d, "day")}`;
+  }
+
+  function renderTimeline(visible) {
+    const host = document.getElementById("timeline");
+    if (!visible.length) {
+      host.innerHTML = '<p class="tl-empty">No tasks match the filters. Clear a filter to see the timeline.</p>';
+      return;
+    }
+
+    const today = todayISO();
+    const dates = visible.map(function (t) { return t.dueDate; }).concat([today]).sort();
+    const start = toISODate(new Date(parseISO(dates[0]).getTime() - 4 * DAY_MS));
+    const end = toISODate(new Date(parseISO(dates[dates.length - 1]).getTime() + 4 * DAY_MS));
+    const span = Math.max(1, daysBetween(start, end));
+    function pos(iso) { return (daysBetween(start, iso) / span).toFixed(4); }
+
+    // Weekly ticks on Mondays; fortnightly on long ranges
+    const step = span > 120 ? 14 : 7;
+    const ticks = [];
+    const first = parseISO(start);
+    first.setDate(first.getDate() + ((8 - first.getDay()) % 7 || 7));
+    for (let d = first; toISODate(d) < end; d = new Date(d.getTime() + step * DAY_MS)) {
+      ticks.push(toISODate(d));
+    }
+
+    // Skip tick labels that would collide with the "Today" label
+    const axis = ticks.filter(function (iso) {
+      return Math.abs(daysBetween(today, iso)) > 3 * (span / 60);
+    }).map(function (iso) {
+      return `<span style="--p:${pos(iso)}">${escapeHtml(formatShortDate(iso))}</span>`;
+    }).join("") + `<span class="tl-axis-today" style="--p:${pos(today)}">Today</span>`;
+
+    const grid = ticks.map(function (iso) {
+      return `<span class="tl-grid" style="--p:${pos(iso)}"></span>`;
+    }).join("") + `<span class="tl-today" style="--p:${pos(today)}"></span>`;
+
+    const lanes = PROJECTS.map(function (project) {
+      const tasks = visible
+        .filter(function (t) { return t.project === project; })
+        .sort(function (a, b) { return a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0; });
+      if (!tasks.length) return "";
+
+      const rows = tasks.map(function (t) {
+        const late = isOverdue(t);
+        let bar = "";
+        if (t.status !== "Done" && t.dueDate > today) {
+          bar = `<span class="tl-span runway" style="--from:${pos(today)};--to:${pos(t.dueDate)}"></span>`;
+        } else if (late) {
+          bar = `<span class="tl-span late" style="--from:${pos(t.dueDate)};--to:${pos(today)}"></span>`;
+        }
+        return `
+          <li class="tl-row st-${slug(t.status)}${late ? " is-late" : ""}">
+            <div class="tl-label">
+              <span class="tl-title" title="${escapeHtml(t.title)}"><span class="tl-id">${escapeHtml(t.id)}</span>${escapeHtml(t.title)}</span>
+              <span class="tl-when">${escapeHtml(t.status)}. ${escapeHtml(whenText(t, today))}</span>
+            </div>
+            <div class="tl-track" aria-hidden="true">
+              ${bar}
+              <span class="tl-mark" style="--p:${pos(t.dueDate)}"></span>
+            </div>
+          </li>`;
+      }).join("");
+
+      return `<li class="tl-lane"><h3>${escapeHtml(project)}</h3><ul class="tl-rows">${rows}</ul></li>`;
+    }).join("");
+
+    host.innerHTML = `
+      <div class="tl-body">
+        <div class="tl-axis" aria-hidden="true">${axis}</div>
+        ${grid}
+        <ul class="tl-lanes" aria-label="Tasks by project and due date">${lanes}</ul>
+      </div>`;
+  }
+
+  /* ---------- Donut: tasks grouped by status ---------- */
+  function renderStatusChart(visible) {
+    const host = document.getElementById("status-chart");
+    const total = visible.length;
+    const R = 48;
+    const C = 2 * Math.PI * R;
+    const counts = STATUSES.map(function (s) {
+      return visible.filter(function (t) { return t.status === s; }).length;
+    });
+    const slices = counts.filter(function (c) { return c > 0; }).length;
+    const gap = slices > 1 ? 1.5 : 0;
+
+    let offset = 0;
+    const segs = STATUSES.map(function (s, i) {
+      if (!counts[i]) return "";
+      const len = (counts[i] / total) * C;
+      const seg = `<circle class="donut-seg st-${slug(s)}" cx="60" cy="60" r="${R}" fill="none" stroke-width="18"
+        stroke-dasharray="${Math.max(0, len - gap).toFixed(2)} ${(C - Math.max(0, len - gap)).toFixed(2)}"
+        stroke-dashoffset="${(-offset).toFixed(2)}" transform="rotate(-90 60 60)"></circle>`;
+      offset += len;
+      return seg;
+    }).join("");
+
+    const legend = STATUSES.map(function (s, i) {
+      const pct = total ? Math.round((counts[i] / total) * 100) : 0;
+      return `<li class="st-${slug(s)}"><span class="swatch" aria-hidden="true"></span>
+        <span>${escapeHtml(s)}</span>
+        <span class="lg-val">${counts[i]}<span class="visually-hidden"> tasks,</span></span>
+        <span class="lg-pct">${pct}%</span></li>`;
+    }).join("");
+
+    host.innerHTML = `
+      <div class="donut-wrap">
+        <svg class="donut" viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="donut-track" cx="60" cy="60" r="${R}" fill="none" stroke-width="18"></circle>
+          ${total ? segs : ""}
+          <text class="donut-total" x="60" y="62" text-anchor="middle">${total}</text>
+          <text class="donut-label" x="60" y="78" text-anchor="middle">${total === 1 ? "task" : "tasks"}</text>
+        </svg>
+        <ul class="legend" aria-label="Tasks by status">${legend}</ul>
+      </div>`;
+  }
+
+  /* ---------- Bars: tasks per assignee, stacked by status ---------- */
+  function renderAssigneeChart(visible) {
+    const host = document.getElementById("assignee-chart");
+    if (!visible.length) {
+      host.innerHTML = '<p class="chart-empty">No tasks match the filters.</p>';
+      return;
+    }
+
+    const people = {};
+    visible.forEach(function (t) {
+      const key = t.assignee.trim();
+      if (!people[key]) {
+        people[key] = { name: key, total: 0, overdue: 0, by: {} };
+        STATUSES.forEach(function (s) { people[key].by[s] = 0; });
+      }
+      people[key].total++;
+      people[key].by[t.status]++;
+      if (isOverdue(t)) people[key].overdue++;
+    });
+
+    const rows = Object.keys(people).map(function (k) { return people[k]; })
+      .sort(function (a, b) { return b.total - a.total || a.name.localeCompare(b.name); });
+    const max = rows[0].total;
+
+    const bars = rows.map(function (p) {
+      const segs = STATUSES.filter(function (s) { return p.by[s]; }).map(function (s) {
+        return `<span class="bar-seg st-${slug(s)}" style="width:${((p.by[s] / max) * 100).toFixed(2)}%" title="${escapeHtml(s)}: ${p.by[s]}"></span>`;
+      }).join("");
+      const breakdown = STATUSES.filter(function (s) { return p.by[s]; })
+        .map(function (s) { return `${p.by[s]} ${s}`; }).join(", ");
+      return `
+        <li class="bar-row">
+          <span class="bar-name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</span>
+          <span class="bar-track" aria-hidden="true">${segs}</span>
+          <span class="bar-val"><strong>${p.total}</strong> ${p.total === 1 ? "task" : "tasks"}
+            <span class="visually-hidden">: ${escapeHtml(breakdown)}.</span>
+            ${p.overdue ? `<span class="late">${p.overdue} overdue</span>` : ""}
+          </span>
+        </li>`;
+    }).join("");
+
+    const scale = [];
+    for (let i = 0; i <= max; i++) scale.push(`<span style="--p:${(i / max).toFixed(4)}">${i}</span>`);
+
+    const legend = STATUSES.map(function (s) {
+      return `<li class="st-${slug(s)}"><span class="swatch" aria-hidden="true"></span>${escapeHtml(s)}</li>`;
+    }).join("");
+
+    host.innerHTML = `
+      <ul class="bars" aria-label="Tasks by assignee" style="--tick:${(100 / max).toFixed(4)}%">${bars}</ul>
+      <div class="bar-scale" aria-hidden="true"><div></div><div>${scale.join("")}</div><div></div></div>
+      <ul class="chart-legend" aria-hidden="true">${legend}</ul>`;
+  }
+
+  function renderBoard() {
+    const visible = applyFilters(state.tasks);
+    const filtered = visible.length !== state.tasks.length;
+
+    STATUSES.forEach(function (status) {
+      const list = document.querySelector(`[data-list="${status}"]`);
+      const tasks = visible.filter(function (t) { return t.status === status; });
+      const total = state.tasks.filter(function (t) { return t.status === status; }).length;
+
+      list.innerHTML = tasks.length
+        ? tasks.map(renderCard).join("")
+        : `<li class="empty-hint">${filtered && total
+          ? "No tasks here match the filters"
+          : `No tasks in ${escapeHtml(status)}. Drag one here or add a task.`}</li>`;
+
+      const badge = document.querySelector(`[data-count="${status}"]`);
+      badge.textContent = filtered ? `${tasks.length}/${total}` : String(tasks.length);
+      badge.setAttribute("aria-label", filtered
+        ? `${tasks.length} of ${total} tasks shown`
+        : plural(tasks.length, "task"));
+    });
+
+    renderSummary();
+    renderScope(visible);
+    renderTimeline(visible);
+    renderStatusChart(visible);
+    renderAssigneeChart(visible);
+    document.getElementById("last-updated").textContent =
+      "Board last changed at " + new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  }
+
+  // After a re-render, put keyboard focus back on a sensible control
+  function restoreFocus(taskId, action) {
+    const selector = action
+      ? `[data-id="${CSS.escape(taskId)}"][data-action="${action}"]`
+      : `.card[data-id="${CSS.escape(taskId)}"] [data-action="move-toggle"]`;
+    const el = document.querySelector(selector);
+    if (el) el.focus();
+  }
+
+  /* =========================================================
+     Actions: mutate state, then re-render
+     ========================================================= */
+  function addTask(data) {
+    const task = Object.assign({ id: formatId(state.nextId++) }, data);
+    state.tasks.push(task);
+    renderBoard();
+    return task;
+  }
+
+  function moveTask(id, status) {
+    const task = state.tasks.find(function (t) { return t.id === id; });
+    if (!task || !STATUSES.includes(status) || task.status === status) return false;
+    task.status = status;
+    state.openMoveMenu = null;
+    state.pendingDelete = null;
+    renderBoard();
+    return true;
+  }
+
+  function deleteTask(id) {
+    state.tasks = state.tasks.filter(function (t) { return t.id !== id; });
+    state.pendingDelete = null;
+    state.openMoveMenu = null;
+    renderBoard();
+  }
+
+  /* =========================================================
+     Toasts
+     ========================================================= */
+  function showToast(message, type) {
+    const toast = document.createElement("div");
+    toast.className = "toast toast-" + (type || "info");
+    toast.textContent = message;
+    document.getElementById("toasts").appendChild(toast);
+    setTimeout(function () { toast.remove(); }, type === "warning" ? 6000 : 4000);
+  }
+
+  /* =========================================================
+     FormSubmit notification (AJAX JSON endpoint)
+     Only sends task data to FORMSUBMIT_ENDPOINT. Callers must wrap in try/catch.
+     ========================================================= */
+  async function notifyNewTask(task) {
+    const controller = new AbortController();
+    const timer = setTimeout(function () { controller.abort(); }, NOTIFY_TIMEOUT_MS);
+    try {
+      const res = await fetch(FORMSUBMIT_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          _subject: `[IT PMO] New task ${task.id}: ${task.title}`,
+          _template: "table",
+          _captcha: "false",
+          "Task ID": task.id,
+          Title: task.title,
+          Description: task.description,
+          Project: task.project,
+          Category: task.category,
+          Assignee: task.assignee,
+          Priority: task.priority,
+          "Due Date": task.dueDate,
+          Status: task.status,
+          "Submitted At": new Date().toISOString(),
+        }),
+      });
+      if (!res.ok) throw new Error(`FormSubmit failed: ${res.status}`);
+      const json = await res.json();
+      // FormSubmit can return 200 with success:"false" (e.g. activation pending)
+      if (json && String(json.success) === "false") {
+        throw new Error("FormSubmit rejected: " + (json.message || "unknown reason"));
+      }
+      return json;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /* =========================================================
+     Add task form: validation & submit
+     ========================================================= */
+  const FIELD_NAMES = ["title", "description", "project", "category", "assignee", "priority", "dueDate", "status"];
+
+  function readForm() {
+    const values = {};
+    FIELD_NAMES.forEach(function (name) {
+      values[name] = document.getElementById("f-" + name).value.trim();
+    });
+    return values;
+  }
+
+  function validateForm(v) {
+    const errors = {};
+    if (!v.title) errors.title = "Enter a task title.";
+    else if (v.title.length > 80) errors.title = "Keep the title to 80 characters or fewer.";
+
+    if (v.description.length > 500) errors.description = "Keep the description to 500 characters or fewer.";
+
+    if (!PROJECTS.includes(v.project)) errors.project = "Choose a project or workstream.";
+    if (!CATEGORIES.includes(v.category)) errors.category = "Choose a category.";
+    if (!v.assignee) errors.assignee = "Enter who owns this task.";
+    if (!PRIORITIES.includes(v.priority)) errors.priority = "Choose a priority.";
+
+    if (!v.dueDate) errors.dueDate = "Choose a due date.";
+    else if (!/^\d{4}-\d{2}-\d{2}$/.test(v.dueDate)) errors.dueDate = "Enter a valid date.";
+    else if (v.dueDate < todayISO()) errors.dueDate = "Choose today or a later date.";
+
+    if (!STATUSES.includes(v.status)) errors.status = "Choose a status.";
+    return errors;
+  }
+
+  function showFieldErrors(errors) {
+    let firstInvalid = null;
+    FIELD_NAMES.forEach(function (name) {
+      const input = document.getElementById("f-" + name);
+      const msg = errors[name] || "";
+      document.getElementById("err-" + name).textContent = msg;
+      if (msg) {
+        input.setAttribute("aria-invalid", "true");
+        if (!firstInvalid) firstInvalid = input;
+      } else {
+        input.removeAttribute("aria-invalid");
+      }
+    });
+    if (firstInvalid) firstInvalid.focus();
+  }
+
+  function resetForm() {
+    const form = document.getElementById("task-form");
+    form.reset();
+    document.getElementById("f-priority").value = "Medium";
+    document.getElementById("f-status").value = "Backlog";
+    document.getElementById("f-dueDate").min = todayISO();
+    showFieldErrors({});
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    const submitBtn = document.getElementById("submit-task");
+    if (submitBtn.disabled) return;
+
+    const values = readForm();
+    const errors = validateForm(values);
+    showFieldErrors(errors);
+    if (Object.keys(errors).length) return;
+
+    // Optimistic UI: card appears immediately
+    const task = addTask(values);
+    resetForm();
+    showToast(`Task ${task.id} added to ${task.status}.`, "success");
+    document.getElementById("f-title").focus();
+
+    // Email notification runs in parallel; failure never breaks the board
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Sending…";
+    try {
+      await notifyNewTask(task);
+      showToast(`Email notification sent for ${task.id}.`, "info");
+    } catch (err) {
+      console.warn(err);
+      showToast(`${task.id} is on the board, but the email notification didn't send.`, "warning");
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Add task";
+    }
+  }
+
+  /* =========================================================
+     Modal open / close
+     ========================================================= */
+  let lastFocused = null;
+
+  function openModal() {
+    lastFocused = document.activeElement;
+    document.getElementById("f-dueDate").min = todayISO();
+    document.getElementById("modal-backdrop").hidden = false;
+    document.getElementById("f-title").focus();
+  }
+
+  function closeModal() {
+    document.getElementById("modal-backdrop").hidden = true;
+    showFieldErrors({});
+    if (lastFocused) lastFocused.focus();
+  }
+
+  // Keep Tab focus inside the open dialog
+  function trapFocus(event) {
+    if (event.key !== "Tab") return;
+    const modal = document.querySelector(".modal");
+    const focusables = modal.querySelectorAll("button:not([disabled]), input, select, textarea");
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault(); last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault(); first.focus();
+    }
+  }
+
+  /* =========================================================
+     Event binding: board (click + drag & drop), filters, form
+     ========================================================= */
+  function bindBoardEvents() {
+    const board = document.getElementById("board");
+
+    // Card controls via delegation
+    board.addEventListener("click", function (e) {
+      const btn = e.target.closest("[data-action]");
+      if (!btn) return;
+      const id = btn.dataset.id;
+
+      switch (btn.dataset.action) {
+        case "move-toggle":
+          state.openMoveMenu = state.openMoveMenu === id ? null : id;
+          state.pendingDelete = null;
+          renderBoard();
+          restoreFocus(id, state.openMoveMenu ? null : "move-toggle");
+          if (state.openMoveMenu) {
+            const firstTarget = document.querySelector(`[data-id="${CSS.escape(id)}"][data-action="move-to"]`);
+            if (firstTarget) firstTarget.focus();
+          }
+          break;
+        case "move-to": {
+          const status = btn.dataset.status;
+          if (moveTask(id, status)) {
+            restoreFocus(id, "move-toggle");
+            showToast(`${id} moved to ${status}.`, "info");
+          }
+          break;
+        }
+        case "delete-ask":
+          state.pendingDelete = id;
+          state.openMoveMenu = null;
+          renderBoard();
+          restoreFocus(id, "delete-no");
+          break;
+        case "delete-no":
+          state.pendingDelete = null;
+          renderBoard();
+          restoreFocus(id, "delete-ask");
+          break;
+        case "delete-yes":
+          deleteTask(id);
+          showToast(`${id} deleted.`, "info");
+          break;
+      }
+    });
+
+    // Native HTML5 drag and drop
+    board.addEventListener("dragstart", function (e) {
+      const card = e.target.closest(".card");
+      if (!card) return;
+      e.dataTransfer.setData("text/plain", card.dataset.id);
+      e.dataTransfer.effectAllowed = "move";
+      card.classList.add("dragging");
+    });
+
+    board.addEventListener("dragend", function (e) {
+      const card = e.target.closest(".card");
+      if (card) card.classList.remove("dragging");
+      clearDragHighlights();
+    });
+
+    board.addEventListener("dragover", function (e) {
+      const column = e.target.closest(".column");
+      if (!column) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      if (!column.classList.contains("drag-over")) {
+        clearDragHighlights();
+        column.classList.add("drag-over");
+      }
+    });
+
+    board.addEventListener("dragleave", function (e) {
+      const column = e.target.closest(".column");
+      if (column && !column.contains(e.relatedTarget)) column.classList.remove("drag-over");
+    });
+
+    board.addEventListener("drop", function (e) {
+      const column = e.target.closest(".column");
+      if (!column) return;
+      e.preventDefault();
+      clearDragHighlights();
+      const id = e.dataTransfer.getData("text/plain");
+      if (moveTask(id, column.dataset.status)) {
+        showToast(`${id} moved to ${column.dataset.status}.`, "info");
+      }
+    });
+
+    // Esc closes an open move menu / delete confirm
+    board.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape" || !(state.openMoveMenu || state.pendingDelete)) return;
+      const id = state.openMoveMenu || state.pendingDelete;
+      state.openMoveMenu = null;
+      state.pendingDelete = null;
+      renderBoard();
+      restoreFocus(id, "move-toggle");
+    });
+  }
+
+  function clearDragHighlights() {
+    document.querySelectorAll(".column.drag-over").forEach(function (c) {
+      c.classList.remove("drag-over");
+    });
+  }
+
+  function bindFilterEvents() {
+    const project = document.getElementById("filter-project");
+    const assignee = document.getElementById("filter-assignee");
+    const priority = document.getElementById("filter-priority");
+
+    project.addEventListener("change", function () { state.filters.project = project.value; renderBoard(); });
+    priority.addEventListener("change", function () { state.filters.priority = priority.value; renderBoard(); });
+    assignee.addEventListener("input", function () { state.filters.assignee = assignee.value; renderBoard(); });
+
+    document.getElementById("clear-filters").addEventListener("click", function () {
+      state.filters = { project: "", assignee: "", priority: "" };
+      project.value = ""; assignee.value = ""; priority.value = "";
+      renderBoard();
+    });
+  }
+
+  function bindFormEvents() {
+    document.getElementById("task-form").addEventListener("submit", handleSubmit);
+    document.getElementById("open-add-task").addEventListener("click", openModal);
+    document.getElementById("close-modal").addEventListener("click", closeModal);
+    document.getElementById("cancel-modal").addEventListener("click", closeModal);
+
+    const backdrop = document.getElementById("modal-backdrop");
+    backdrop.addEventListener("click", function (e) { if (e.target === backdrop) closeModal(); });
+    backdrop.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeModal();
+      else trapFocus(e);
+    });
+  }
+
+  /* =========================================================
+     Populate selects from reference data (static values only)
+     ========================================================= */
+  function fillSelect(id, values, selected) {
+    const select = document.getElementById(id);
+    values.forEach(function (v) {
+      const opt = document.createElement("option");
+      opt.value = v;
+      opt.textContent = v;
+      if (v === selected) opt.selected = true;
+      select.appendChild(opt);
+    });
+  }
+
+  /* =========================================================
+     Init
+     ========================================================= */
+  function init() {
+    fillSelect("filter-project", PROJECTS);
+    fillSelect("filter-priority", PRIORITIES);
+    fillSelect("f-project", PROJECTS, PROJECTS[0]);
+    fillSelect("f-category", CATEGORIES, CATEGORIES[0]);
+    fillSelect("f-priority", PRIORITIES, "Medium");
+    fillSelect("f-status", STATUSES, "Backlog");
+    document.getElementById("f-dueDate").min = todayISO();
+
+    seedTasks();
+    bindBoardEvents();
+    bindFilterEvents();
+    bindFormEvents();
+    renderBoard();
+  }
+
+  init();
+</script>
+</body>
+</html>

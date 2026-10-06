@@ -4,7 +4,9 @@
 
 A lightweight Kanban board for the internal IT Project Management Office of a fictitious bank. It's built as a single, dependency-free HTML file.
 
-**Live demo:** https://sameerumralkar.github.io/Kanban/
+**Live demo:**
+- **v2 (current):** https://sameerumralkar.github.io/Kanban/v2/
+- **v1 (original):** https://sameerumralkar.github.io/Kanban/
 
 ![IT PMO Kanban board showing the Backlog, In Progress, Blocked and Done columns](docs/screenshot.png)
 
@@ -19,6 +21,17 @@ A lightweight Kanban board for the internal IT Project Management Office of a fi
 - **Email notification** for each new task, sent through [FormSubmit](https://formsubmit.co). This is optional and the board works without it.
 - **Responsive layout:** 1 column on phones, 2 on tablets, 4 on desktop.
 - **Accessible:** ARIA labels, focus restore after re-render, and priority shown as text as well as colour.
+
+## What's new in v2
+
+`v2/index.html` is a redesign that sits alongside v1. v1 at the site root is unchanged.
+
+- **Delivery timeline:** every task's due date, grouped by project. A runway bar runs from today to the due date. Overdue open tasks get a hatched red bar showing how late they are, with the status and days stated in text.
+- **Tasks by status:** a donut chart with a legend that gives the count and share of each column.
+- **Tasks by assignee:** horizontal bars, sorted by workload and stacked by status, with overdue counts.
+- **Footer** with section links, a link back to v1 and the repository.
+- **One status colour language** shared by the columns, charts and timeline. The timeline and charts follow the filters and update on every card move.
+- A plain-language headline summary, dark-mode support, and 14 seed tasks (up from 8) so the per-assignee chart has something to compare.
 
 ## Tech stack
 
@@ -55,7 +68,8 @@ FormSubmit sends a one-time activation email on the first submission. Nothing is
 
 ```
 .
-├── index.html               # The whole app: markup, <style>, <script>
+├── index.html               # v1: the whole app (markup, <style>, <script>)
+├── v2/index.html            # v2: redesign with timeline, charts and footer
 ├── CLAUDE.md                # Architecture notes and constraints for contributors / Claude Code
 ├── docs/screenshot.png      # README screenshot of the live site
 └── .github/workflows/ci.yml # CI checks + GitHub Pages deployment
@@ -65,11 +79,11 @@ FormSubmit sends a one-time activation email on the first submission. Nothing is
 
 Every push and pull request to `main` runs:
 
-1. **Constraint check:** no storage APIs, `alert`/`confirm`, `!important` or external resources.
+1. **Constraint check** (v1 and v2): no storage APIs, `alert`/`confirm`, `!important` or external resources.
 2. **JavaScript syntax check** of the inline script.
 3. **Secret scan** with [gitleaks](https://github.com/gitleaks/gitleaks).
 
-Pushes to `main` that pass all three checks are deployed to GitHub Pages automatically.
+Pushes to `main` that pass all three checks are deployed to GitHub Pages automatically. v1 is served at the site root and v2 at `/v2/`.
 
 ## License
 

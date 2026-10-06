@@ -6,6 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 An IT PMO Kanban board for a fictitious bank's internal IT project management office. The whole app is one file, `index.html`, holding the markup, a `<style>` block and a `<script>` block.
 
+There are two versions, each a self-contained single file:
+- `index.html` is v1, served at the GitHub Pages root. Leave it unchanged unless asked.
+- `v2/index.html` is the redesign, served at `/v2/`. On top of v1 it adds a delivery timeline, a donut of tasks by status, stacked bars of tasks by assignee, a footer, dark mode and 14 seed tasks. `renderBoard()` also calls `renderSummary()`, `renderScope()`, `renderTimeline()`, `renderStatusChart()` and `renderAssigneeChart()`, which all render from the filtered task list. Status colours come from the `.st-<status>` classes, which set `--st`.
+
+The architecture notes below apply to both files.
+
 ## Hard constraints (from the original brief — do not violate)
 
 - **Vanilla HTML/CSS/JS only.** No frameworks, libraries, build step, bundler or npm.
@@ -25,7 +31,7 @@ There is no build, lint or test tooling.
 - **Testing the add-task flow:** replace `window.fetch` with a rejecting function first. Otherwise you'll send real requests to FormSubmit.
 - **Constraint check:** this should print nothing.
   ```
-  grep -nE 'localStorage|sessionStorage|indexedDB|document\.cookie|alert\(|confirm\(|!important|<link|src="http' index.html
+  grep -nE 'localStorage|sessionStorage|indexedDB|document\.cookie|alert\(|confirm\(|!important|<link|src="http' index.html v2/index.html
   ```
 
 ## Architecture (inside the `<script>` block)

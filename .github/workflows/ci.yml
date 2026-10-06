@@ -25,10 +25,12 @@ jobs:
 
       - name: Enforce project constraints
         run: |
-          if grep -nE 'localStorage|sessionStorage|indexedDB|document\.cookie|alert\(|confirm\(|!important|<link|src="http' index.html; then
-            echo "::error::index.html violates a project constraint (see CLAUDE.md)"
-            exit 1
-          fi
+          for f in index.html v2/index.html; do
+            if grep -nE 'localStorage|sessionStorage|indexedDB|document\.cookie|alert\(|confirm\(|!important|<link|src="http' "$f"; then
+              echo "::error::$f violates a project constraint (see CLAUDE.md)"
+              exit 1
+            fi
+          done
 
       - uses: actions/setup-node@v4
         with:
@@ -36,8 +38,10 @@ jobs:
 
       - name: JavaScript syntax check
         run: |
-          awk '/<script>/{f=1;next}/<\/script>/{f=0}f' index.html > "$RUNNER_TEMP/app.js"
-          node --check "$RUNNER_TEMP/app.js"
+          for f in index.html v2/index.html; do
+            awk '/<script>/{f=1;next}/<\/script>/{f=0}f' "$f" > "$RUNNER_TEMP/app.js"
+            node --check "$RUNNER_TEMP/app.js"
+          done
 
       - name: Secret scan
         uses: gitleaks/gitleaks-action@v2
@@ -59,7 +63,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
       - name: Stage site files
-        run: mkdir _site && cp index.html _site/
+        run: mkdir -p _site/v2 && cp index.html _site/ && cp v2/index.html _site/v2/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
