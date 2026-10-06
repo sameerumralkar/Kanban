@@ -26,6 +26,8 @@ A lightweight Kanban board for the internal IT Project Management Office of a fi
 
 `v2/index.html` is a redesign that sits alongside v1. v1 at the site root is unchanged.
 
+![IT PMO Board v2: headline summary, filter toolbar and the four status columns with colour-coded column rules](docs/screenshot-v2.png)
+
 - **Delivery timeline:** every task's due date, grouped by project. A runway bar runs from today to the due date. Overdue open tasks get a hatched red bar showing how late they are, with the status and days stated in text.
 - **Tasks by status:** a donut chart with a legend that gives the count and share of each column.
 - **Tasks by assignee:** horizontal bars, sorted by workload and stacked by status, with overdue counts.
@@ -71,7 +73,8 @@ FormSubmit sends a one-time activation email on the first submission. Nothing is
 ├── index.html               # v1: the whole app (markup, <style>, <script>)
 ├── v2/index.html            # v2: redesign with timeline, charts and footer
 ├── CLAUDE.md                # Architecture notes and constraints for contributors / Claude Code
-├── docs/screenshot.png      # README screenshot of the live site
+├── docs/screenshot.png      # README screenshot of v1
+├── docs/screenshot-v2.png   # README screenshot of v2
 └── .github/workflows/ci.yml # CI checks + GitHub Pages deployment
 ```
 
